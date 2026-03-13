@@ -2,48 +2,51 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
-
-	"github.com/your-org/error-simulator/models"
+	"strconv"
 )
 
-// UserRepository performs user lookups against the database.
-// The bug: db is never initialized (nil); GetUserByID calls r.db.QueryRow and panics.
 type UserRepository struct {
 	db *sql.DB
 }
 
-// NewUserRepository returns a repository. In this test target, db is left nil
-// to simulate a failed connection pool initialization in production.
-func NewUserRepository() *UserRepository {
-	return &UserRepository{
-		db: nil, // simulate failed DB init
-	}
+func NewUserRepository(db *sql.DB) *UserRepository {
+	return &UserRepository{db: db}
 }
 
-// GetUserByID fetches a user by ID. If the repository's db connection was never
-// initialized, r.db is nil and r.db.QueryRow causes a nil pointer dereference.
-func (r *UserRepository) GetUserByID(id string) (*models.User, error) {
-	query := `SELECT id, email, first_name, last_name, created_at FROM users WHERE id = $1`
-	row := r.db.QueryRow(query, id)
-	var u models.User
-	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.CreatedAt)
+// GetUserByID retrieves a user by ID and writes the response.
+func (r *UserRepository) GetUserByID(w http.ResponseWriter, req *http.Request) {
+	// Guard against nil DB to prevent nil pointer dereference panics.
+	if r == nil || r.db == nil {
+		http.Error(w, "database not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	idStr := req.URL.Query().Get("id")
+	if idStr == "" {
+		http.Error(w, "missing id parameter", http.StatusBadRequest)
+		return
+	}
+
+	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		return nil, err
+		http.Error(w, "invalid id parameter", http.StatusBadRequest)
+		return
 	}
-	return &u, nil
-}
 
-// DBError handles GET /error/db.
-// It calls GetUserByID on a repository with nil db to trigger the panic.
-func DBError(repo *UserRepository) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		_, err := repo.GetUserByID("user-abc-123")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	var name string
+	row := r.db.QueryRow("SELECT name FROM users WHERE id = ?", id)
+	if err := row.Scan(&name); err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "user not found", http.StatusNotFound)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
 	}
+
+	resp := map[string]interface{}{"id": id, "name": name}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
 }
