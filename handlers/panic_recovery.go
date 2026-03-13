@@ -24,9 +24,9 @@ func NewPaymentService() *PaymentService {
 // call a payment gateway. Here we explicitly panic when amount > maxTransactionLimit
 // to simulate a business rule enforced via panic.
 func (s *PaymentService) ProcessPayment(amount float64, currency string) (txID string, err error) {
-		log.Printf("[PaymentService] ProcessPayment started merchant=%s amount=%.2f currency=%s",
-			s.merchantID, amount, currency)
-		// No validation — direct panic when amount exceeds limit.
+	log.Printf("[PaymentService] ProcessPayment started merchant=%s amount=%.2f currency=%s",
+		s.merchantID, amount, currency)
+	// No validation — direct panic when amount exceeds limit.
 	if amount > maxTransactionLimit {
 		panic(fmt.Sprintf("payment amount exceeds maximum transaction limit: got %v, max %v",
 			amount, maxTransactionLimit))
