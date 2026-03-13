@@ -30,21 +30,26 @@ func Recovery(cfg *config.Config, next http.Handler) http.Handler {
 				if errorType == "" {
 					errorType = "Unknown"
 				}
+				traceID := TraceIDFromContext(r.Context())
 
 				// Structured log so we know exactly what fucked up when raising fix PRs
-				logger.Log.Error().
+				logEv := logger.Log.Error().
 					Str("error_type", errorType).
 					Str("path", r.URL.Path).
 					Str("method", r.Method).
 					Str("error_message", errMsg).
 					Str("stack_trace", stack).
-					Str("what_failed", whatFailedSummary(errorType, r.URL.Path)).
-					Msg("panic recovered")
+					Str("what_failed", whatFailedSummary(errorType, r.URL.Path))
+				if traceID != "" {
+					logEv = logEv.Str("trace_id", traceID)
+				}
+				logEv.Msg("panic recovered")
 
 				event := models.ErrorEvent{
 					Service:      "error-simulator",
 					Repository:   cfg.GithubRepository,
 					Branch:       "main",
+					TraceID:      traceID,
 					ErrorMessage: errMsg,
 					StackTrace:   stack,
 					Timestamp:    time.Now().UTC().Format(time.RFC3339),
@@ -52,18 +57,26 @@ func Recovery(cfg *config.Config, next http.Handler) http.Handler {
 				}
 				kafkaErr := kafka.PublishErrorEvent(cfg, event)
 				if kafkaErr != nil {
-					logger.Log.Error().Err(kafkaErr).Str("error_type", errorType).Msg("kafka publish failed after panic recovery")
+					kafkaLog := logger.Log.Error().Err(kafkaErr).Str("error_type", errorType)
+					if traceID != "" {
+						kafkaLog = kafkaLog.Str("trace_id", traceID)
+					}
+					kafkaLog.Msg("kafka publish failed after panic recovery")
 				}
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				payload := map[string]interface{}{
 					"error":         "panic recovered",
 					"error_message": errMsg,
 					"error_type":    errorType,
 					"kafka_sent":    kafkaErr == nil,
 					"timestamp":     time.Now().UTC().Format(time.RFC3339),
-				})
+				}
+				if traceID != "" {
+					payload["trace_id"] = traceID
+				}
+				_ = json.NewEncoder(w).Encode(payload)
 			}
 		}()
 		next.ServeHTTP(w, r)

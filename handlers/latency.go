@@ -27,7 +27,7 @@ func Latency(cfg *config.Config) http.HandlerFunc {
 			}
 		}
 		d := time.Duration(ms) * time.Millisecond
-		logger.Log.Info().Int("ms", ms).Str("path", r.URL.Path).Msg("latency: sleeping before response")
+		logger.WithTrace(r.Context()).Info().Int("ms", ms).Str("path", r.URL.Path).Msg("latency: sleeping before response")
 		time.Sleep(d)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))

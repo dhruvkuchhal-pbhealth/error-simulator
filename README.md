@@ -61,6 +61,15 @@ curl http://localhost:8080/error/nil-pointer
 | `GITHUB_REPOSITORY`       | Repository name sent in events          | `error-simulator`                                      |
 | `LATENCY_MS`              | Default delay (ms) for `/error/latency` | `3000` (override with `?ms=`)                          |
 
+### Trace ID
+
+Every request gets a **trace ID** so you can correlate logs and events across functions and repos:
+
+- **Response header**: `X-Trace-ID` is set on every response (and accepted from `X-Trace-ID` or `X-Request-ID` on the request; otherwise one is generated).
+- **Logs**: Request-scoped logs include `trace_id` when using `logger.WithTrace(r.Context())`.
+- **Error responses**: Panic recovery JSON includes `trace_id`.
+- **Kafka events**: `ErrorEvent` has a `trace_id` field for downstream correlation.
+
 ---
 
 ## API Endpoints

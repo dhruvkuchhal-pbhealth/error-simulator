@@ -66,6 +66,10 @@ func PublishErrorEvent(cfg *config.Config, event models.ErrorEvent) error {
 		logger.Log.Error().Err(err).Str("topic", topic).Msg("kafka produce failed")
 		return err
 	}
-	logger.Log.Info().Str("topic", topic).Str("error_message", event.ErrorMessage).Msg("error event published to kafka")
+	ev := logger.Log.Info().Str("topic", topic).Str("error_message", event.ErrorMessage)
+	if event.TraceID != "" {
+		ev = ev.Str("trace_id", event.TraceID)
+	}
+	ev.Msg("error event published to kafka")
 	return nil
 }

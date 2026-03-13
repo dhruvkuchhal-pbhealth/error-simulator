@@ -46,6 +46,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/error/nil-pointer", wrap("NilPointer", handlers.NilPointer(orderSvc)))
+	// TraceID middleware runs first so every response has X-Trace-ID and context carries it for logs/events
+	handler := middleware.TraceID(mux)
 	mux.Handle("/error/db", wrap("DBError", handlers.DBError(userRepo)))
 	mux.Handle("/error/panic", wrap("Panic", handlers.PanicRecovery(paymentSvc)))
 	mux.Handle("/error/index-oob", wrap("IndexOOB", handlers.IndexOOB(reportGen)))
@@ -64,7 +66,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:    ":" + cfg.ServerPort,
-		Handler: mux,
+		Handler: handler,
 	}
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

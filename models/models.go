@@ -47,6 +47,7 @@ type ErrorEvent struct {
 	Service      string `json:"service"`
 	Repository   string `json:"repository"`
 	Branch       string `json:"branch"`
+	TraceID      string `json:"trace_id,omitempty"`
 	ErrorMessage string `json:"error_message"`
 	StackTrace   string `json:"stack_trace"`
 	Timestamp    string `json:"timestamp"`
