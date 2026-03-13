@@ -9,16 +9,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/your-org/error-simulator/config"
 	"github.com/your-org/error-simulator/cachesvc"
+	"github.com/your-org/error-simulator/config"
 	"github.com/your-org/error-simulator/configsvc"
 	"github.com/your-org/error-simulator/handlers"
-	"github.com/your-org/error-simulator/userfetcher"
-	"github.com/your-org/error-simulator/usersvc"
 	"github.com/your-org/error-simulator/kafka"
 	"github.com/your-org/error-simulator/logger"
 	"github.com/your-org/error-simulator/middleware"
 	"github.com/your-org/error-simulator/pipeline"
+	"github.com/your-org/error-simulator/userfetcher"
+	"github.com/your-org/error-simulator/usersvc"
 )
 
 func main() {
@@ -58,6 +58,7 @@ func main() {
 	mux.Handle("/error/multi-file/cache", wrap("MultiFileCache", handlers.MultiFileCache(cacheSvc)))
 	mux.Handle("/error/multi-file/interface", wrap("MultiFileInterface", handlers.MultiFileInterface(userSvc)))
 	mux.Handle("/error/multi-file/callback", wrap("MultiFileCallback", handlers.MultiFileCallback()))
+	mux.Handle("/error/latency", handlers.Latency(cfg))
 
 	printBanner(cfg)
 
@@ -112,6 +113,7 @@ func printBanner(cfg *config.Config) {
 	fmt.Println("  GET /error/multi-file/cache    → 3-file: handler→cachesvc→repo (nil db)")
 	fmt.Println("  GET /error/multi-file/interface → genre: interface (handler→usersvc→userfetcher impl panic)")
 	fmt.Println("  GET /error/multi-file/callback  → genre: callback (handler callback panics via processor)")
+	fmt.Printf("  GET /error/latency              → configurable delay (default %d ms, override ?ms=)\n", cfg.LatencyMs)
 	fmt.Printf("\nKafka: %s → %s\n", kafkaAddr, topic)
 	fmt.Println("==============================")
 }

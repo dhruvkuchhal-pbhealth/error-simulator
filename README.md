@@ -53,12 +53,13 @@ curl http://localhost:8080/error/nil-pointer
 
 ## Configuration
 
-| Variable                  | Description                    | Default                                                |
-| ------------------------- | ------------------------------ | ------------------------------------------------------ |
-| `SERVER_PORT`             | HTTP server port               | `8080`                                                 |
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker list              | `localhost:9092` (if empty, Kafka publish is disabled) |
-| `KAFKA_TOPIC`             | Topic for error events         | `service.errors`                                       |
-| `GITHUB_REPOSITORY`       | Repository name sent in events | `error-simulator`                                      |
+| Variable                  | Description                             | Default                                                |
+| ------------------------- | --------------------------------------- | ------------------------------------------------------ |
+| `SERVER_PORT`             | HTTP server port                        | `8080`                                                 |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker list                       | `localhost:9092` (if empty, Kafka publish is disabled) |
+| `KAFKA_TOPIC`             | Topic for error events                  | `service.errors`                                       |
+| `GITHUB_REPOSITORY`       | Repository name sent in events          | `error-simulator`                                      |
+| `LATENCY_MS`              | Default delay (ms) for `/error/latency` | `3000` (override with `?ms=`)                          |
 
 ---
 
@@ -81,6 +82,7 @@ All endpoints are **GET**. Each one triggers a specific kind of error; the **rec
 | `/error/multi-file/cache`     | Multi-file (layered)   | Handler → cachesvc → repo: nil `*sql.DB`.                                                                                        |
 | `/error/multi-file/interface` | Multi-file (interface) | Handler → usersvc → userfetcher impl: panic in interface impl (other pkg).                                                       |
 | `/error/multi-file/callback`  | Multi-file (callback)  | Handler passes callback to processor; callback panics in handler code.                                                           |
+| `/error/latency`              | Latency (no panic)     | Configurable delay then `200 OK`. Env `LATENCY_MS` or query `?ms=5000` (max 300000 ms).                                          |
 
 Multi-file errors are grouped by **genre**: **layered** (sync chain), **interface** (panic in impl), **callback** (panic in caller’s callback). See [docs/MULTI_FILE_ERRORS.md](docs/MULTI_FILE_ERRORS.md).
 
@@ -143,6 +145,7 @@ Events published to the configured topic match the schema consumed by **ai-debug
 │   ├── multi_file_cache.go    # genre: layered
 │   ├── multi_file_interface.go # genre: interface boundary
 │   └── multi_file_callback.go  # genre: callback/visitor
+│   └── latency.go              # configurable delay (no panic)
 ├── pipeline/              # Layered: order.go, formatter.go
 ├── configsvc/             # Layered: service.go, env.go
 ├── cachesvc/              # Layered: cache.go, repo.go
