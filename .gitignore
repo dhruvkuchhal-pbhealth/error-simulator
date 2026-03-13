@@ -1,0 +1,23 @@
+# Binaries
+error-simulator
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go workspace / vendor
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+/dist/
