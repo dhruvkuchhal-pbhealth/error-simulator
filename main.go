@@ -14,8 +14,6 @@ import (
 	"github.com/your-org/error-simulator/kafka"
 	"github.com/your-org/error-simulator/logger"
 	"github.com/your-org/error-simulator/middleware"
-
-	"go.elastic.co/apm/module/apmhttp/v2"
 )
 
 func main() {
@@ -47,10 +45,9 @@ func main() {
 
 	printBanner(cfg)
 
-	handler := apmhttp.Wrap(mux)
 	server := &http.Server{
 		Addr:    ":" + cfg.ServerPort,
-		Handler: handler,
+		Handler: mux,
 	}
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

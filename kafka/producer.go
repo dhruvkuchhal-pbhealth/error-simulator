@@ -1,11 +1,13 @@
 package kafka
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/your-org/error-simulator/config"
 	"github.com/your-org/error-simulator/logger"
+	"github.com/your-org/error-simulator/models"
 )
 
 var (
@@ -42,3 +44,28 @@ func InitProducer(cfg *config.Config) {
 
 // PublishErrorEvent serializes the event to JSON and publishes to the configured topic.
 // Never panics; if Kafka is unreachable or not configured, logs and returns an error.
+func PublishErrorEvent(cfg *config.Config, event models.ErrorEvent) error {
+	if !enabled || producer == nil {
+		logger.Log.Warn().Msg("kafka producer not available; skipping publish")
+		return nil
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("kafka event marshal failed")
+		return err
+	}
+	topic := cfg.KafkaTopic
+	if topic == "" {
+		topic = "service.errors"
+	}
+	err = producer.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+		Value:          payload,
+	}, nil)
+	if err != nil {
+		logger.Log.Error().Err(err).Str("topic", topic).Msg("kafka produce failed")
+		return err
+	}
+	logger.Log.Info().Str("topic", topic).Str("error_message", event.ErrorMessage).Msg("error event published to kafka")
+	return nil
+}

@@ -15,10 +15,10 @@ type Config struct {
 // Load reads configuration from environment variables with defaults.
 func Load() *Config {
 	return &Config{
-		KafkaBootstrapServers: getEnv("KAFKA_BOOTSTRAP_SERVERS", "10.0.10.135:9092"),
-		KafkaTopic:            getEnv("KAFKA_TOPIC", "app-error-logs"),
-		GithubRepository:      getEnv("GITHUB_REPOSITORY", "dhruvkuchhal-pbhealth/error-simulator"),
-		ServerPort:            getEnv("SERVER_PORT", "8092"),
+		KafkaBootstrapServers: getEnv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+		KafkaTopic:            getEnv("KAFKA_TOPIC", "service.errors"),
+		GithubRepository:      getEnv("GITHUB_REPOSITORY", "error-simulator"),
+		ServerPort:            getEnv("SERVER_PORT", "8080"),
 	}
 }
 

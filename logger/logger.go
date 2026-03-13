@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"io"
 	"os"
 
 	"github.com/rs/zerolog"
@@ -12,15 +11,9 @@ import (
 var Log zerolog.Logger
 
 func init() {
-	outputs := []io.Writer{zerolog.ConsoleWriter{Out: os.Stdout}}
-	if w := initLogstashOutput(); w.host != "" {
-		outputs = append(outputs, w)
-	}
-
-	Log = zerolog.New(io.MultiWriter(outputs...)).
+	Log = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).
 		With().
 		Timestamp().
 		Str("service", "error-simulator").
-		Str("layer", "simulator").
 		Logger()
 }

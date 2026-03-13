@@ -3,16 +3,15 @@ package middleware
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"runtime/debug"
 	"time"
 
 	"github.com/your-org/error-simulator/config"
+	"github.com/your-org/error-simulator/kafka"
 	"github.com/your-org/error-simulator/logger"
-
-	"go.elastic.co/apm/v2"
+	"github.com/your-org/error-simulator/models"
 )
 
 type contextKey string
@@ -32,11 +31,7 @@ func Recovery(cfg *config.Config, next http.Handler) http.Handler {
 					errorType = "Unknown"
 				}
 
-				// Report to Elastic APM for Kibana APM Services
-				apm.CaptureError(r.Context(), errors.New(errMsg)).Send()
-
-				// Structured log so we know exactly what fucked up when raising fix PRs.
-				// Include repository/branch so Logstash→Kafka events have them for ai-debugger PR creation.
+				// Structured log so we know exactly what fucked up when raising fix PRs
 				logger.Log.Error().
 					Str("error_type", errorType).
 					Str("path", r.URL.Path).
@@ -44,10 +39,21 @@ func Recovery(cfg *config.Config, next http.Handler) http.Handler {
 					Str("error_message", errMsg).
 					Str("stack_trace", stack).
 					Str("what_failed", whatFailedSummary(errorType, r.URL.Path)).
-					Str("service", "error-simulator").
-					Str("repository", cfg.GithubRepository).
-					Str("branch", "main").
 					Msg("panic recovered")
+
+				event := models.ErrorEvent{
+					Service:      "error-simulator",
+					Repository:   cfg.GithubRepository,
+					Branch:       "main",
+					ErrorMessage: errMsg,
+					StackTrace:   stack,
+					Timestamp:    time.Now().UTC().Format(time.RFC3339),
+					Environment:  "development",
+				}
+				kafkaErr := kafka.PublishErrorEvent(cfg, event)
+				if kafkaErr != nil {
+					logger.Log.Error().Err(kafkaErr).Str("error_type", errorType).Msg("kafka publish failed after panic recovery")
+				}
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
@@ -55,6 +61,7 @@ func Recovery(cfg *config.Config, next http.Handler) http.Handler {
 					"error":         "panic recovered",
 					"error_message": errMsg,
 					"error_type":    errorType,
+					"kafka_sent":    kafkaErr == nil,
 					"timestamp":     time.Now().UTC().Format(time.RFC3339),
 				})
 			}

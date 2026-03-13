@@ -43,18 +43,6 @@ export KAFKA_TOPIC=service.errors
 go run .
 ```
 
-**Capture logs in ELK** (Kibana Discover, Error Dashboard):
-
-```bash
-# Option 1: env vars (works with go run main.go)
-export LOGSTASH_HOST=localhost
-export LOGSTASH_PORT=5001
-go run main.go
-
-# Option 2: use run_with_elk.sh (sets LOGSTASH_* and APM env)
-./run_with_elk.sh
-```
-
 Trigger an error:
 
 ```bash
@@ -71,8 +59,6 @@ curl http://localhost:8080/error/nil-pointer
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker list              | `localhost:9092` (if empty, Kafka publish is disabled) |
 | `KAFKA_TOPIC`             | Topic for error events         | `service.errors`                                       |
 | `GITHUB_REPOSITORY`       | Repository name sent in events | `error-simulator`                                      |
-| `LOGSTASH_HOST`           | Logstash host for ELK capture  | (empty = disabled)                                     |
-| `LOGSTASH_PORT`           | Logstash TCP port              | `5001`                                                 |
 
 ---
 
