@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +12,7 @@ import (
 	"github.com/your-org/error-simulator/config"
 	"github.com/your-org/error-simulator/handlers"
 	"github.com/your-org/error-simulator/kafka"
+	"github.com/your-org/error-simulator/logger"
 	"github.com/your-org/error-simulator/middleware"
 )
 
@@ -51,20 +51,20 @@ func main() {
 	}
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server: %v", err)
+			logger.Log.Fatal().Err(err).Msg("server listen failed")
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("shutting down...")
+	logger.Log.Info().Msg("shutting down...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("shutdown error: %v", err)
+		logger.Log.Error().Err(err).Msg("shutdown error")
 	}
-	log.Println("server stopped")
+	logger.Log.Info().Msg("server stopped")
 }
 
 func printBanner(cfg *config.Config) {

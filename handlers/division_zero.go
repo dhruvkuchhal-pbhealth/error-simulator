@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"time"
+
+	"github.com/your-org/error-simulator/logger"
 )
 
 // MetricsService computes business metrics. The bug: CalculateConversionRate
@@ -20,8 +21,11 @@ func NewMetricsService(period string) *MetricsService {
 // CalculateConversionRate returns conversions per visit as a rate.
 // When totalVisits is 0, conversions/totalVisits causes integer divide by zero.
 func (m *MetricsService) CalculateConversionRate(totalVisits int, conversions int) float64 {
-	log.Printf("[MetricsService] computing conversion rate for period=%s visits=%d conversions=%d",
-		m.period, totalVisits, conversions)
+	logger.Log.Debug().
+		Str("period", m.period).
+		Int("total_visits", totalVisits).
+		Int("conversions", conversions).
+		Msg("computing conversion rate")
 	// BUG: No zero check on totalVisits.
 	rate := conversions / totalVisits
 	return float64(rate)

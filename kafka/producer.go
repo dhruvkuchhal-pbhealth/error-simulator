@@ -2,11 +2,11 @@ package kafka
 
 import (
 	"encoding/json"
-	"log"
 	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/your-org/error-simulator/config"
+	"github.com/your-org/error-simulator/logger"
 	"github.com/your-org/error-simulator/models"
 )
 
@@ -21,7 +21,7 @@ var (
 func InitProducer(cfg *config.Config) {
 	once.Do(func() {
 		if cfg.KafkaBootstrapServers == "" {
-			log.Println("[kafka] KAFKA_BOOTSTRAP_SERVERS not set; skipping Kafka producer (events will not be published)")
+			logger.Log.Warn().Msg("KAFKA_BOOTSTRAP_SERVERS not set; skipping Kafka producer (events will not be published)")
 			enabled = false
 			return
 		}
@@ -29,13 +29,16 @@ func InitProducer(cfg *config.Config) {
 			"bootstrap.servers": cfg.KafkaBootstrapServers,
 		})
 		if err != nil {
-			log.Printf("[kafka] failed to create producer: %v; events will not be published", err)
+			logger.Log.Error().Err(err).Msg("kafka producer init failed; events will not be published")
 			enabled = false
 			return
 		}
 		producer = p
 		enabled = true
-		log.Printf("[kafka] producer connected to %s, topic %s", cfg.KafkaBootstrapServers, cfg.KafkaTopic)
+		logger.Log.Info().
+			Str("bootstrap", cfg.KafkaBootstrapServers).
+			Str("topic", cfg.KafkaTopic).
+			Msg("kafka producer connected")
 	})
 }
 
@@ -43,12 +46,12 @@ func InitProducer(cfg *config.Config) {
 // Never panics; if Kafka is unreachable or not configured, logs and returns an error.
 func PublishErrorEvent(cfg *config.Config, event models.ErrorEvent) error {
 	if !enabled || producer == nil {
-		log.Println("[kafka] producer not available; skipping publish")
+		logger.Log.Warn().Msg("kafka producer not available; skipping publish")
 		return nil
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("[kafka] marshal error: %v", err)
+		logger.Log.Error().Err(err).Msg("kafka event marshal failed")
 		return err
 	}
 	topic := cfg.KafkaTopic
@@ -60,9 +63,9 @@ func PublishErrorEvent(cfg *config.Config, event models.ErrorEvent) error {
 		Value:          payload,
 	}, nil)
 	if err != nil {
-		log.Printf("[kafka] produce error: %v", err)
+		logger.Log.Error().Err(err).Str("topic", topic).Msg("kafka produce failed")
 		return err
 	}
-	log.Printf("[kafka] event published to %s", topic)
+	logger.Log.Info().Str("topic", topic).Str("error_message", event.ErrorMessage).Msg("error event published to kafka")
 	return nil
 }

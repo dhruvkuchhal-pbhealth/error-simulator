@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"runtime/debug"
 	"time"
 
 	"github.com/your-org/error-simulator/config"
 	"github.com/your-org/error-simulator/kafka"
+	"github.com/your-org/error-simulator/logger"
 	"github.com/your-org/error-simulator/models"
 )
 
@@ -31,6 +31,16 @@ func Recovery(cfg *config.Config, next http.Handler) http.Handler {
 					errorType = "Unknown"
 				}
 
+				// Structured log so we know exactly what fucked up when raising fix PRs
+				logger.Log.Error().
+					Str("error_type", errorType).
+					Str("path", r.URL.Path).
+					Str("method", r.Method).
+					Str("error_message", errMsg).
+					Str("stack_trace", stack).
+					Str("what_failed", whatFailedSummary(errorType, r.URL.Path)).
+					Msg("panic recovered")
+
 				event := models.ErrorEvent{
 					Service:      "error-simulator",
 					Repository:   cfg.GithubRepository,
@@ -42,7 +52,7 @@ func Recovery(cfg *config.Config, next http.Handler) http.Handler {
 				}
 				kafkaErr := kafka.PublishErrorEvent(cfg, event)
 				if kafkaErr != nil {
-					log.Printf("[recovery] kafka publish failed: %v", kafkaErr)
+					logger.Log.Error().Err(kafkaErr).Str("error_type", errorType).Msg("kafka publish failed after panic recovery")
 				}
 
 				w.Header().Set("Content-Type", "application/json")
@@ -89,4 +99,22 @@ func getErrorType(r *http.Request) string {
 
 func withErrorType(ctx context.Context, errorType string) context.Context {
 	return context.WithValue(ctx, ErrorTypeKey, errorType)
+}
+
+// whatFailedSummary returns a one-liner describing what to fix (for PR titles/descriptions).
+func whatFailedSummary(errorType, path string) string {
+	m := map[string]string{
+		"NilPointer":    "order.Patient nil dereference in OrderService.ProcessOrder",
+		"DBError":       "nil *sql.DB in UserRepository.GetUserByID",
+		"Panic":         "PaymentService.ProcessPayment panic when amount exceeds limit",
+		"IndexOOB":      "ReportGenerator.GetTopProducts index out of range (slice len < 6)",
+		"TypeAssertion": "ConfigLoader.GetDatabaseConfig type assertion on config[\"database\"]",
+		"DivisionZero":  "MetricsService.CalculateConversionRate divide by zero (totalVisits=0)",
+		"Deadlock":      "CacheManager mutex ordering (UpdateCache vs InvalidateCache)",
+		"StackOverflow": "TreeNode.CalculateDepth missing nil base case / circular ref",
+	}
+	if s, ok := m[errorType]; ok {
+		return s
+	}
+	return path + " — unknown error type " + errorType
 }
