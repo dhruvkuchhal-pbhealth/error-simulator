@@ -2,48 +2,55 @@ package handlers
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"net/http"
-
-	"github.com/your-org/error-simulator/models"
 )
 
-// UserRepository performs user lookups against the database.
-// The bug: db is never initialized (nil); GetUserByID calls r.db.QueryRow and panics.
+// UserRepository wraps a *sql.DB
 type UserRepository struct {
 	db *sql.DB
 }
 
-// NewUserRepository returns a repository. In this test target, db is left nil
-// to simulate a failed connection pool initialization in production.
-func NewUserRepository() *UserRepository {
-	return &UserRepository{
-		db: nil, // simulate failed DB init
+// NewUserRepository constructs a UserRepository and validates the db is non-nil
+func NewUserRepository(db *sql.DB) (*UserRepository, error) {
+	if db == nil {
+		return nil, errors.New("db is nil")
 	}
+	return &UserRepository{db: db}, nil
 }
 
-// GetUserByID fetches a user by ID. If the repository's db connection was never
-// initialized, r.db is nil and r.db.QueryRow causes a nil pointer dereference.
-func (r *UserRepository) GetUserByID(id string) (*models.User, error) {
-	query := `SELECT id, email, first_name, last_name, created_at FROM users WHERE id = $1`
-	row := r.db.QueryRow(query, id)
-	var u models.User
-	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.CreatedAt)
-	if err != nil {
-		return nil, err
+// GetUserByID returns the user for the given id
+func (repo *UserRepository) GetUserByID(id int) (string, error) {
+	if repo == nil || repo.db == nil {
+		return "", fmt.Errorf("database not initialized: repo or repo.db is nil")
 	}
-	return &u, nil
+
+	row := repo.db.QueryRow("SELECT name FROM users WHERE id = ?", id)
+	var name string
+	if err := row.Scan(&name); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	return name, nil
 }
 
-// DBError handles GET /error/db.
-// It calls GetUserByID on a repository with nil db to trigger the panic.
-func DBError(repo *UserRepository) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		_, err := repo.GetUserByID("user-abc-123")
+// DBError is an HTTP handler demonstrating DB usage
+func DBError(repo *UserRepository) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name, err := repo.GetUserByID(1)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if name == "" {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("user not found"))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
-	}
+		w.Write([]byte(name))
+	})
 }
