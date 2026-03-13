@@ -4,10 +4,11 @@ import "time"
 
 // Order represents an order with optional patient billing info.
 type Order struct {
-	ID        string
-	Amount    float64
-	Patient   *Patient
-	CreatedAt time.Time
+	ID              string
+	Amount          float64
+	Patient         *Patient
+	ShippingAddress *Address // nil when not set → multi-file panic in pipeline formatter
+	CreatedAt       time.Time
 }
 
 // Patient holds customer/patient details with optional address.

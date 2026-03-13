@@ -104,14 +104,19 @@ func withErrorType(ctx context.Context, errorType string) context.Context {
 // whatFailedSummary returns a one-liner describing what to fix (for PR titles/descriptions).
 func whatFailedSummary(errorType, path string) string {
 	m := map[string]string{
-		"NilPointer":    "order.Patient nil dereference in OrderService.ProcessOrder",
-		"DBError":       "nil *sql.DB in UserRepository.GetUserByID",
-		"Panic":         "PaymentService.ProcessPayment panic when amount exceeds limit",
-		"IndexOOB":      "ReportGenerator.GetTopProducts index out of range (slice len < 6)",
-		"TypeAssertion": "ConfigLoader.GetDatabaseConfig type assertion on config[\"database\"]",
-		"DivisionZero":  "MetricsService.CalculateConversionRate divide by zero (totalVisits=0)",
-		"Deadlock":      "CacheManager mutex ordering (UpdateCache vs InvalidateCache)",
-		"StackOverflow": "TreeNode.CalculateDepth missing nil base case / circular ref",
+		"NilPointer":         "order.Patient nil dereference in OrderService.ProcessOrder",
+		"DBError":            "nil *sql.DB in UserRepository.GetUserByID",
+		"Panic":              "PaymentService.ProcessPayment panic when amount exceeds limit",
+		"IndexOOB":           "ReportGenerator.GetTopProducts index out of range (slice len < 6)",
+		"TypeAssertion":      "ConfigLoader.GetDatabaseConfig type assertion on config[\"database\"]",
+		"DivisionZero":       "MetricsService.CalculateConversionRate divide by zero (totalVisits=0)",
+		"Deadlock":           "CacheManager mutex ordering (UpdateCache vs InvalidateCache)",
+		"StackOverflow":      "TreeNode.CalculateDepth missing nil base case / circular ref",
+		"MultiFileOrder":     "order pipeline: formatter.BuildInvoice nil ShippingAddress (genre: layered)",
+		"MultiFileConfig":    "config chain: env.Expand type assertion on DSN (genre: layered)",
+		"MultiFileCache":     "cache+repo: repo.FindByID nil db (genre: layered)",
+		"MultiFileInterface": "interface boundary: userfetcher.FetchUser nil deref in impl (genre: interface)",
+		"MultiFileCallback":  "callback/visitor: handler callback derefs nil Child in processor.Process (genre: callback)",
 	}
 	if s, ok := m[errorType]; ok {
 		return s

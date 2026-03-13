@@ -66,16 +66,23 @@ curl http://localhost:8080/error/nil-pointer
 
 All endpoints are **GET**. Each one triggers a specific kind of error; the **recovery middleware** catches panics, publishes an event to Kafka (if configured), and returns a JSON error response with `500`. Exceptions: **deadlock** and **stack-overflow** are not recoverable and will terminate the process.
 
-| Endpoint                | Error type         | Description                                                                                                                      |
-| ----------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `/error/nil-pointer`    | Nil pointer        | `OrderService.ProcessOrder` dereferences `order.Patient` when it is nil.                                                         |
-| `/error/db`             | DB error           | `UserRepository.GetUserByID` uses a nil `*sql.DB`, causing a panic.                                                              |
-| `/error/panic`          | Explicit panic     | `PaymentService.ProcessPayment` panics when amount exceeds limit.                                                                |
-| `/error/index-oob`      | Index out of range | `ReportGenerator.GetTopProducts` accesses index 5 on a slice of length 3.                                                        |
-| `/error/type-assertion` | Type assertion     | `ConfigLoader.GetDatabaseConfig` asserts `config["database"]` as `map[string]interface{}` but it is a string.                    |
-| `/error/division-zero`  | Division by zero   | `MetricsService.CalculateConversionRate` divides by `totalVisits` when it is 0.                                                  |
-| `/error/deadlock`       | Deadlock           | `CacheManager` uses two mutexes in opposite order in different methods; concurrent calls deadlock. **Fatal:** process exits.     |
-| `/error/stack-overflow` | Stack overflow     | `TreeNode.CalculateDepth` recurses without a nil base case and is called with a self-referential node. **Fatal:** process exits. |
+| Endpoint                      | Error type             | Description                                                                                                                      |
+| ----------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `/error/nil-pointer`          | Nil pointer            | `OrderService.ProcessOrder` dereferences `order.Patient` when it is nil.                                                         |
+| `/error/db`                   | DB error               | `UserRepository.GetUserByID` uses a nil `*sql.DB`, causing a panic.                                                              |
+| `/error/panic`                | Explicit panic         | `PaymentService.ProcessPayment` panics when amount exceeds limit.                                                                |
+| `/error/index-oob`            | Index out of range     | `ReportGenerator.GetTopProducts` accesses index 5 on a slice of length 3.                                                        |
+| `/error/type-assertion`       | Type assertion         | `ConfigLoader.GetDatabaseConfig` asserts `config["database"]` as `map[string]interface{}` but it is a string.                    |
+| `/error/division-zero`        | Division by zero       | `MetricsService.CalculateConversionRate` divides by `totalVisits` when it is 0.                                                  |
+| `/error/deadlock`             | Deadlock               | `CacheManager` uses two mutexes in opposite order in different methods; concurrent calls deadlock. **Fatal:** process exits.     |
+| `/error/stack-overflow`       | Stack overflow         | `TreeNode.CalculateDepth` recurses without a nil base case and is called with a self-referential node. **Fatal:** process exits. |
+| `/error/multi-file/order`     | Multi-file (layered)   | Handler → pipeline → formatter: nil `order.ShippingAddress`.                                                                     |
+| `/error/multi-file/config`    | Multi-file (layered)   | Handler → configsvc → env: type assertion on DSN.                                                                                |
+| `/error/multi-file/cache`     | Multi-file (layered)   | Handler → cachesvc → repo: nil `*sql.DB`.                                                                                        |
+| `/error/multi-file/interface` | Multi-file (interface) | Handler → usersvc → userfetcher impl: panic in interface impl (other pkg).                                                       |
+| `/error/multi-file/callback`  | Multi-file (callback)  | Handler passes callback to processor; callback panics in handler code.                                                           |
+
+Multi-file errors are grouped by **genre**: **layered** (sync chain), **interface** (panic in impl), **callback** (panic in caller’s callback). See [docs/MULTI_FILE_ERRORS.md](docs/MULTI_FILE_ERRORS.md).
 
 ---
 
@@ -128,9 +135,20 @@ Events published to the configured topic match the schema consumed by **ai-debug
 │   ├── panic_recovery.go  # PaymentService explicit panic
 │   ├── index_oob.go       # ReportGenerator index out of range
 │   ├── type_assertion.go  # ConfigLoader bad type assertion
-│   ├── division_zero.go   # MetricsService divide by zero
+│   ├── division_zero.go  # MetricsService divide by zero
 │   ├── deadlock.go        # CacheManager mutex deadlock
-│   └── stack_overflow.go  # TreeNode infinite recursion
+│   ├── stack_overflow.go  # TreeNode infinite recursion
+│   ├── multi_file_order.go    # genre: layered
+│   ├── multi_file_config.go   # genre: layered
+│   ├── multi_file_cache.go    # genre: layered
+│   ├── multi_file_interface.go # genre: interface boundary
+│   └── multi_file_callback.go  # genre: callback/visitor
+├── pipeline/              # Layered: order.go, formatter.go
+├── configsvc/             # Layered: service.go, env.go
+├── cachesvc/              # Layered: cache.go, repo.go
+├── usersvc/                # Interface genre: svc.go (Fetcher)
+├── userfetcher/            # Interface genre: impl panics
+├── processor/              # Callback genre: process.go, invoke.go, item.go
 ├── kafka/
 │   └── producer.go        # Singleton producer, PublishErrorEvent
 └── models/
