@@ -1,28 +1,30 @@
 package cachesvc
 
 import (
-	"database/sql"
-
+	"github.com/google/uuid"
 	"github.com/your-org/error-simulator/models"
+	"gorm.io/gorm"
 )
 
-// Repo fetches users from DB. BUG: db is nil; FindByID panics (multi-file stack).
+// Repo fetches users from DB. Uses same users table as face-recognition-service.
 type Repo struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-// NewRepo returns a repo with nil db (simulates failed DB init).
-func NewRepo() *Repo {
-	return &Repo{db: nil}
+// NewRepo returns a repo with real DB connection.
+func NewRepo(db *gorm.DB) *Repo {
+	return &Repo{db: db}
 }
 
-// FindByID runs a query. Panics when r.db is nil.
+// FindByID fetches a user by ID using GORM.
 func (r *Repo) FindByID(id string) (*models.User, error) {
-	row := r.db.QueryRow("SELECT id, email FROM users WHERE id = $1", id)
-	var u models.User
-	err := row.Scan(&u.ID, &u.Email)
+	parsed, err := uuid.Parse(id)
 	if err != nil {
 		return nil, err
 	}
-	return &u, nil
+	var u models.UserModel
+	if err := r.db.Where("id = ?", parsed).First(&u).Error; err != nil {
+		return nil, err
+	}
+	return u.ToUser(), nil
 }

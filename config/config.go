@@ -11,6 +11,8 @@ type Config struct {
 	KafkaTopic            string
 	GithubRepository      string
 	ServerPort            string
+	// DatabaseURL is the PostgreSQL connection string (same user db as face-recognition-service).
+	DatabaseURL string
 	// LatencyMs is the default delay (ms) for the latency endpoint. Overridable via ?ms= query.
 	LatencyMs int
 }
@@ -18,10 +20,11 @@ type Config struct {
 // Load reads configuration from environment variables with defaults.
 func Load() *Config {
 	return &Config{
-		KafkaBootstrapServers: getEnv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
-		KafkaTopic:            getEnv("KAFKA_TOPIC", "service.errors"),
+		KafkaBootstrapServers: getEnv("KAFKA_BOOTSTRAP_SERVERS", "10.0.10.135:9092"),
+		KafkaTopic:            getEnv("KAFKA_TOPIC", "app-error-logs"),
 		GithubRepository:      getEnv("GITHUB_REPOSITORY", "error-simulator"),
 		ServerPort:            getEnv("SERVER_PORT", "8080"),
+		DatabaseURL:           getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/face_recognition"),
 		LatencyMs:             getEnvInt("LATENCY_MS", 3000),
 	}
 }

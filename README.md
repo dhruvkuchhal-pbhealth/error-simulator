@@ -17,6 +17,7 @@ If you do **not** use Kafka or an ai-debugger consumer, you can still run the se
 ## Requirements
 
 - **Go 1.21+**
+- **PostgreSQL**: Uses the same `face_recognition` user database as [face-recognition-service](../face-recognition-service). Ensure PostgreSQL is running and the database exists (e.g. `createdb face_recognition` or run face-recognition-service first).
 - **Kafka** (optional): only needed if you want events published to a topic. If `KAFKA_BOOTSTRAP_SERVERS` is unset or Kafka is unavailable, the app still runs and logs that events were not published.
 
 ---
@@ -53,13 +54,14 @@ curl http://localhost:8080/error/nil-pointer
 
 ## Configuration
 
-| Variable                  | Description                             | Default                                                |
-| ------------------------- | --------------------------------------- | ------------------------------------------------------ |
-| `SERVER_PORT`             | HTTP server port                        | `8080`                                                 |
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker list                       | `localhost:9092` (if empty, Kafka publish is disabled) |
-| `KAFKA_TOPIC`             | Topic for error events                  | `service.errors`                                       |
-| `GITHUB_REPOSITORY`       | Repository name sent in events          | `error-simulator`                                      |
-| `LATENCY_MS`              | Default delay (ms) for `/error/latency` | `3000` (override with `?ms=`)                          |
+| Variable                  | Description                             | Default                                                                 |
+| ------------------------- | --------------------------------------- | ----------------------------------------------------------------------- |
+| `SERVER_PORT`             | HTTP server port                        | `8080`                                                                  |
+| `DATABASE_URL`            | PostgreSQL connection (user db)         | `postgresql://postgres:postgres@localhost:5432/face_recognition`         |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker list                       | `localhost:9092` (if empty, Kafka publish is disabled)                  |
+| `KAFKA_TOPIC`             | Topic for error events                  | `service.errors`                                                        |
+| `GITHUB_REPOSITORY`       | Repository name sent in events          | `error-simulator`                                                       |
+| `LATENCY_MS`              | Default delay (ms) for `/error/latency` | `3000` (override with `?ms=`)                                           |
 
 ### Trace ID
 

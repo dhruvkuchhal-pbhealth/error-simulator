@@ -6,10 +6,13 @@ set -e
 cd "$(dirname "$0")"
 
 export LOGSTASH_HOST="${LOGSTASH_HOST:-localhost}"
-export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-dhruvkuchhal-pbhealth/error-simulator}"
 export LOGSTASH_PORT="${LOGSTASH_PORT:-5001}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/face_recognition}"
+export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-dhruvkuchhal-pbhealth/error-simulator}"
 export ELASTIC_APM_SERVICE_NAME="${ELASTIC_APM_SERVICE_NAME:-error-simulator}"
 export ELASTIC_APM_SERVER_URL="${ELASTIC_APM_SERVER_URL:-http://localhost:8200}"
+export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-10.0.10.135:9092}"
+export KAFKA_TOPIC="${KAFKA_TOPIC:-app-error-logs}"
 
 # Check if Logstash is reachable
 if ! nc -z "$LOGSTASH_HOST" "$LOGSTASH_PORT" 2>/dev/null; then

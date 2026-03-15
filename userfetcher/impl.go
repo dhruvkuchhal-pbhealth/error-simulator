@@ -1,24 +1,30 @@
 package userfetcher
 
-import "github.com/your-org/error-simulator/models"
+import (
+	"github.com/google/uuid"
+	"github.com/your-org/error-simulator/models"
+	"gorm.io/gorm"
+)
 
-// Impl implements usersvc.Fetcher (interface defined there). Panic happens in this package = interface-boundary genre.
+// Impl implements usersvc.Fetcher. Fetches from the real users DB (same as face-recognition-service).
 type Impl struct {
-	cache map[string]*models.User
+	db *gorm.DB
 }
 
-// NewImpl returns an impl with empty cache (cache miss → nil → panic on deref).
-func NewImpl() *Impl {
-	return &Impl{cache: make(map[string]*models.User)}
+// NewImpl returns an impl that fetches from the real users DB.
+func NewImpl(db *gorm.DB) *Impl {
+	return &Impl{db: db}
 }
 
-// FetchUser implements Fetcher. BUG: on cache miss u is nil; we "normalize" and deref → panic in this file.
+// FetchUser implements Fetcher. Fetches from DB using GORM.
 func (i *Impl) FetchUser(id string) (*models.User, error) {
-	var u *models.User
-	if v, ok := i.cache[id]; ok {
-		u = v
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
 	}
-	// BUG: no nil check; panic here (genre: interface boundary — impl in different pkg)
-	_ = u.ID
-	return u, nil
+	var u models.UserModel
+	if err := i.db.Where("id = ?", parsed).First(&u).Error; err != nil {
+		return nil, err
+	}
+	return u.ToUser(), nil
 }

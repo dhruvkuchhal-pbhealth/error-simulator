@@ -1,37 +1,36 @@
 package handlers
 
 import (
-	"database/sql"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/your-org/error-simulator/models"
+	"gorm.io/gorm"
 )
 
 // UserRepository performs user lookups against the database.
-// The bug: db is never initialized (nil); GetUserByID calls r.db.QueryRow and panics.
+// Uses the same users table as face-recognition-service (face_recognition DB).
 type UserRepository struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-// NewUserRepository returns a repository. In this test target, db is left nil
-// to simulate a failed connection pool initialization in production.
-func NewUserRepository() *UserRepository {
-	return &UserRepository{
-		db: nil, // simulate failed DB init
-	}
+// NewUserRepository returns a repository with real DB connection.
+// Uses DATABASE_URL (default: postgresql://postgres:postgres@localhost:5432/face_recognition).
+func NewUserRepository(db *gorm.DB) *UserRepository {
+	return &UserRepository{db: db}
 }
 
-// GetUserByID fetches a user by ID. If the repository's db connection was never
-// initialized, r.db is nil and r.db.QueryRow causes a nil pointer dereference.
+// GetUserByID fetches a user by ID from the users table.
 func (r *UserRepository) GetUserByID(id string) (*models.User, error) {
-	query := `SELECT id, email, first_name, last_name, created_at FROM users WHERE id = $1`
-	row := r.db.QueryRow(query, id)
-	var u models.User
-	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.CreatedAt)
+	parsed, err := uuid.Parse(id)
 	if err != nil {
+		return nil, err // invalid UUID format
+	}
+	var u models.UserModel
+	if err := r.db.Where("id = ?", parsed).First(&u).Error; err != nil {
 		return nil, err
 	}
-	return &u, nil
+	return u.ToUser(), nil
 }
 
 // DBError handles GET /error/db.

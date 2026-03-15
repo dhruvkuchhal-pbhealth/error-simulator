@@ -12,6 +12,7 @@ import (
 	"github.com/your-org/error-simulator/cachesvc"
 	"github.com/your-org/error-simulator/config"
 	"github.com/your-org/error-simulator/configsvc"
+	"github.com/your-org/error-simulator/db"
 	"github.com/your-org/error-simulator/handlers"
 	"github.com/your-org/error-simulator/kafka"
 	"github.com/your-org/error-simulator/logger"
@@ -19,14 +20,25 @@ import (
 	"github.com/your-org/error-simulator/pipeline"
 	"github.com/your-org/error-simulator/userfetcher"
 	"github.com/your-org/error-simulator/usersvc"
+	"go.elastic.co/apm/v2"
+	"go.elastic.co/apm/module/apmhttp/v2"
 )
 
 func main() {
 	cfg := config.Load()
 	kafka.InitProducer(cfg)
 
+	// Connect to PostgreSQL (same user db as face-recognition-service)
+	gormDB, err := db.Open(cfg.DatabaseURL)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Str("database_url", cfg.DatabaseURL).Msg("failed to connect to database")
+	}
+	if sqlDB, err := gormDB.DB(); err == nil {
+		defer sqlDB.Close()
+	}
+
 	orderSvc := handlers.NewOrderService()
-	userRepo := handlers.NewUserRepository()
+	userRepo := handlers.NewUserRepository(gormDB)
 	paymentSvc := handlers.NewPaymentService()
 	reportGen := handlers.NewReportGenerator()
 	metricsSvc := handlers.NewMetricsService("monthly")
@@ -34,9 +46,9 @@ func main() {
 	treeOps := &handlers.TreeOps{}
 	orderPipeline := &pipeline.Pipeline{}
 	configSvc := &configsvc.Service{}
-	cacheSvcRepo := cachesvc.NewRepo()
+	cacheSvcRepo := cachesvc.NewRepo(gormDB)
 	cacheSvc := cachesvc.NewCacheService(cacheSvcRepo)
-	userFetcherImpl := userfetcher.NewImpl()
+	userFetcherImpl := userfetcher.NewImpl(gormDB)
 	userSvc := &usersvc.Service{Fetcher: userFetcherImpl}
 
 	// WithErrorType must wrap Recovery so that when we recover, r.Context() has the error type.
@@ -64,6 +76,9 @@ func main() {
 
 	printBanner(cfg)
 
+	// Wrap with APM to send traces to Elastic (when ELASTIC_APM_SERVER_URL is set)
+	handler = apmhttp.Wrap(handler)
+
 	server := &http.Server{
 		Addr:    ":" + cfg.ServerPort,
 		Handler: handler,
@@ -83,6 +98,7 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Log.Error().Err(err).Msg("shutdown error")
 	}
+	apm.DefaultTracer().Close()
 	logger.Log.Info().Msg("server stopped")
 }
 

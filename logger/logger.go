@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"io"
 	"os"
 
 	"github.com/rs/zerolog"
@@ -10,10 +11,15 @@ import (
 
 // Log is the global logger. Human-readable console output so "what fucked up"
 // is obvious when triaging errors and raising fix PRs.
+// When LOGSTASH_HOST is set, also sends JSON to Logstash TCP.
 var Log zerolog.Logger
 
 func init() {
-	Log = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).
+	var w io.Writer = zerolog.ConsoleWriter{Out: os.Stdout}
+	if ls := initLogstashOutput(); ls.host != "" {
+		w = zerolog.MultiLevelWriter(w, ls)
+	}
+	Log = zerolog.New(w).
 		With().
 		Timestamp().
 		Str("service", "error-simulator").
