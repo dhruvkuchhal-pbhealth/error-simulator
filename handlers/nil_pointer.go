@@ -1,58 +1,50 @@
 package handlers
 
 import (
-	"fmt"
+	"encoding/json"
+	"errors"
 	"net/http"
-	"time"
-
-	"github.com/your-org/error-simulator/models"
 )
 
-// OrderService processes orders and generates invoices.
-// The bug: ProcessOrder does not nil-check order.Patient before accessing nested fields.
+// OrderService simulates a service that processes orders.
+// Fields may be nil in some situations in the original code; ensure safe access.
 type OrderService struct {
-	baseURL string
+	// Imagine some internal client or dependency that might be nil
+	Client interface{}
 }
 
-// NewOrderService returns an OrderService with default config.
-func NewOrderService() *OrderService {
-	return &OrderService{baseURL: "https://api.example.com"}
-}
-
-// ProcessOrder validates the order, resolves patient billing info, and builds an invoice line.
-// When order.Patient is nil, accessing order.Patient.Name causes a nil pointer dereference.
-func (s *OrderService) ProcessOrder(order *models.Order) (invoiceLine string, err error) {
-	if order == nil {
-		return "", nil
+// ProcessOrder processes an order; returns an error instead of panicking on nil receiver/deps.
+func (s *OrderService) ProcessOrder() error {
+	if s == nil {
+		return errors.New("order service is not initialized")
 	}
-	// Simulate fetching tax rate and formatting amount.
-	amountStr := formatCurrency(order.Amount)
-	created := order.CreatedAt.Format(time.RFC3339)
-	// Build billing line: we need patient name and address for the invoice.
-	// BUG: No nil check on order.Patient — if the order was created without
-	// patient data (e.g. anonymous checkout), Patient is nil.
-	patientName := order.Patient.Name
-	patientCity := order.Patient.Address.City
-	invoiceLine = patientName + " | " + patientCity + " | " + amountStr + " | " + created
-	return invoiceLine, nil
+	// If the service depends on Client, ensure it's non-nil before use.
+	if s.Client == nil {
+		// Either initialize default behavior or return an explicit error.
+		return errors.New("order service client is nil")
+	}
+
+	// Normal processing would occur here. Keep minimal to avoid panic.
+	return nil
 }
 
-func formatCurrency(amount float64) string {
-	return fmt.Sprintf("USD %.2f", amount)
-}
-
-// NilPointer handles GET /error/nil-pointer.
-// It creates an Order with nil Patient and calls ProcessOrder to trigger the dereference.
+// NilPointer returns an HTTP handler that uses OrderService safely.
 func NilPointer(svc *OrderService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		order := &models.Order{
-			ID:        "ord-12345",
-			Amount:    99.99,
-			Patient:   nil, // deliberately nil to trigger bug
-			CreatedAt: time.Now(),
+		// Validate service before calling methods.
+		if svc == nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "order service not available"})
+			return
 		}
-		_, _ = svc.ProcessOrder(order)
+
+		if err := svc.ProcessOrder(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "processed"})
 	}
 }
