@@ -1,54 +1,52 @@
 package handlers
 
 import (
-	"fmt"
+	"encoding/json"
+	"errors"
 	"net/http"
-	"time"
-
-	"github.com/your-org/error-simulator/logger"
 )
 
-const maxTransactionLimit = 10000.0
-
-// PaymentService processes payments. The bug: ProcessPayment panics when
-// amount exceeds the limit instead of returning an error.
-type PaymentService struct {
-	merchantID string
+// PaymentService is a simple example service that processes payments.
+// In the original code it panicked on invalid input; we return errors instead.
+type PaymentService struct{
+	MaxAmount int64
 }
 
-// NewPaymentService returns a payment service with default merchant.
-func NewPaymentService() *PaymentService {
-	return &PaymentService{merchantID: "merchant_default"}
+// PaymentRequest represents a payment request payload.
+type PaymentRequest struct{
+	AccountID string `json:"account_id"`
+	Amount    int64  `json:"amount"`
 }
 
-// ProcessPayment validates and processes a payment. In production this would
-// call a payment gateway. Here we explicitly panic when amount > maxTransactionLimit
-// to simulate a business rule enforced via panic.
-func (s *PaymentService) ProcessPayment(amount float64, currency string) (txID string, err error) {
-	logger.Log.Debug().
-		Str("merchant_id", s.merchantID).
-		Float64("amount", amount).
-		Str("currency", currency).
-		Msg("ProcessPayment started")
-	// No validation — direct panic when amount exceeds limit.
-	if amount > maxTransactionLimit {
-		panic(fmt.Sprintf("payment amount exceeds maximum transaction limit: got %v, max %v",
-			amount, maxTransactionLimit))
+// ProcessPayment validates and processes a payment request.
+// It returns an error for invalid input instead of panicking.
+func (s *PaymentService) ProcessPayment(r *http.Request) error {
+	var req PaymentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return err
 	}
-	txID = fmt.Sprintf("tx_%d", time.Now().UnixNano())
-	return txID, nil
+
+	// use configured MaxAmount if set, otherwise default to 10000
+	max := s.MaxAmount
+	if max == 0 {
+		max = 10000
+	}
+
+	if req.Amount > max {
+		return errors.New("payment amount exceeds maximum transaction limit")
+	}
+
+	// Placeholder for actual processing logic. Return nil to indicate success.
+	return nil
 }
 
-// PanicRecovery handles GET /error/panic.
-// It calls ProcessPayment with an amount over the limit to trigger the panic.
-func PanicRecovery(svc *PaymentService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		txID, err := svc.ProcessPayment(999999, "USD")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(txID))
+// Handler to expose ProcessPayment over HTTP
+func (s *PaymentService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := s.ProcessPayment(r); err != nil {
+		// map validation error to 400 Bad Request
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ok"}`))
 }
