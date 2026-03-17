@@ -1,44 +1,39 @@
 package handlers
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
-	"time"
-
-	"github.com/your-org/error-simulator/logger"
 )
 
-// MetricsService computes business metrics. The bug: CalculateConversionRate
-// divides by totalVisits without checking for zero.
-type MetricsService struct {
-	period string
-}
+// MetricsService provides methods for metrics calculations.
+type MetricsService struct{}
 
-// NewMetricsService returns a metrics service for the given period.
-func NewMetricsService(period string) *MetricsService {
-	return &MetricsService{period: period}
-}
-
-// CalculateConversionRate returns conversions per visit as a rate.
-// When totalVisits is 0, conversions/totalVisits causes integer divide by zero.
-func (m *MetricsService) CalculateConversionRate(totalVisits int, conversions int) float64 {
-	logger.Log.Debug().
-		Str("period", m.period).
-		Int("total_visits", totalVisits).
-		Int("conversions", conversions).
-		Msg("computing conversion rate")
-	// BUG: No zero check on totalVisits.
-	rate := conversions / totalVisits
-	return float64(rate)
-}
-
-// DivisionZero handles GET /error/division-zero.
-// It calls CalculateConversionRate with totalVisits=0 to trigger divide by zero.
-func DivisionZero(svc *MetricsService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		period := time.Now().Format("2006-01")
-		ms := NewMetricsService(period)
-		_ = ms.CalculateConversionRate(0, 5)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+// CalculateConversionRate calculates conversion rate given numerator and denominator.
+// Returns an error if the denominator is zero.
+func (m *MetricsService) CalculateConversionRate(numerator, denominator int) (int, error) {
+	if denominator == 0 {
+		return 0, errors.New("denominator is zero")
 	}
+	return (numerator * 100) / denominator, nil
+}
+
+// DivisionZero handler demonstrates a division operation via MetricsService.
+func DivisionZero(svc *MetricsService) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// For the example we use fixed values; in real code these would come from request.
+		numerator := 0
+		denominator := 5
+
+		// Call the service and handle potential division-by-zero error.
+		rate, err := svc.CalculateConversionRate(numerator, denominator)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]int{"conversion_rate": rate})
+	})
 }
